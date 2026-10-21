@@ -1,0 +1,691 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MPGB | PMJJBY PMSBY Status Portal</title>
+
+<style>
+:root {
+  --green:#006633;
+  --green2:#008044;
+  --bg:#f3f7f5;
+  --border:#dce5df;
+  --text:#203129;
+  --muted:#68786e;
+}
+* { box-sizing:border-box; }
+body {
+  margin:0;
+  font-family:Arial,Helvetica,sans-serif;
+  background:var(--bg);
+  color:var(--text);
+}
+header {
+  background:linear-gradient(120deg,#004b25,#008044);
+  color:white;
+  padding:20px 16px;
+}
+.header-inner,.container {
+  width:100%;
+  max-width:1100px;
+  margin:auto;
+}
+.brand {
+  font-size:23px;
+  font-weight:800;
+}
+.subtitle {
+  font-size:13px;
+  margin-top:6px;
+  opacity:.9;
+}
+.container { padding:16px; }
+.panel,.scheme-card,.record,.detail {
+  background:white;
+  border:1px solid var(--border);
+  border-radius:14px;
+  padding:16px;
+  box-shadow:0 3px 12px #163c2410;
+}
+label {
+  display:block;
+  font-size:13px;
+  font-weight:700;
+  margin-bottom:7px;
+}
+input,select,textarea {
+  width:100%;
+  min-height:44px;
+  padding:11px;
+  border:1px solid #cbd7ce;
+  border-radius:9px;
+  background:white;
+  color:var(--text);
+  font:inherit;
+}
+textarea { min-height:85px; resize:vertical; }
+button {
+  min-height:43px;
+  padding:10px 15px;
+  border:0;
+  border-radius:9px;
+  font-weight:700;
+  font-size:14px;
+  cursor:pointer;
+}
+button:disabled { opacity:.55; cursor:wait; }
+.primary { background:var(--green); color:white; }
+.secondary { background:#e7f2eb; color:var(--green); }
+.outline { background:white; color:var(--green); border:1px solid var(--green); }
+button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible {
+  outline:2px solid #168b50;
+  outline-offset:2px;
+}
+.section { margin-top:17px; }
+.section-title {
+  font-size:18px;
+  font-weight:800;
+  margin-bottom:12px;
+}
+.cards {
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:12px;
+}
+.scheme-card h3 { margin:0 0 12px; font-size:17px; }
+.count { font-size:30px; font-weight:800; color:var(--green); }
+.metrics { display:flex; gap:12px; flex-wrap:wrap; margin:10px 0 14px; }
+.metric { flex:1; min-width:70px; font-size:12px; color:var(--muted); }
+.metric strong { display:block; font-size:17px; color:var(--text); margin-top:4px; }
+.actions { display:flex; gap:8px; flex-wrap:wrap; }
+.actions button { flex:1; }
+.toolbar {
+  display:grid;
+  grid-template-columns:1fr 150px;
+  gap:10px;
+  margin-bottom:12px;
+}
+.record { margin-bottom:10px; box-shadow:none; }
+.record-top {
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:10px;
+}
+.customer-name { font-weight:800; font-size:15px; overflow-wrap:anywhere; }
+.account { font-size:12px; color:var(--muted); margin-top:6px; }
+.status {
+  display:inline-block;
+  padding:5px 8px;
+  border-radius:20px;
+  font-size:11px;
+  font-weight:800;
+  background:#fff3d9;
+  color:#815900;
+  white-space:nowrap;
+}
+.status.enrolled { background:#e0f4e7; color:#176b35; }
+.status.not-enrolled { background:#fde7e5; color:#a52c25; }
+.record-bottom {
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:8px;
+  margin-top:12px;
+}
+.remark-preview {
+  font-size:12px;
+  color:var(--muted);
+  overflow-wrap:anywhere;
+}
+.hidden { display:none!important; }
+.details-grid {
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:12px;
+}
+.field-value {
+  font-size:14px;
+  overflow-wrap:anywhere;
+  padding-top:5px;
+}
+.field-label { font-size:11px; color:var(--muted); font-weight:700; }
+.form-field { margin-bottom:14px; }
+.message {
+  padding:12px;
+  border-radius:9px;
+  margin:12px 0;
+  font-size:13px;
+  overflow-wrap:anywhere;
+}
+.error { background:#ffebeb; color:#9b2424; }
+.success { background:#e3f5e8; color:#176b35; }
+.info { background:#eaf2ff; color:#234e87; }
+#busy { color:var(--muted); font-size:13px; padding:10px 0; }
+footer {
+  text-align:center;
+  color:var(--muted);
+  font-size:12px;
+  padding:24px 12px;
+}
+@media(max-width:560px) {
+  .cards { grid-template-columns:1fr; }
+  .container { padding:12px; }
+  .panel,.scheme-card { padding:13px; }
+  .toolbar { grid-template-columns:1fr; }
+  .details-grid { grid-template-columns:1fr 1fr; gap:10px; }
+  .brand { font-size:20px; }
+  .record-top { flex-direction:column; }
+}
+</style>
+</head>
+
+<body>
+<header>
+  <div class="header-inner">
+    <div class="brand">MPGB | FI STATUS PORTAL</div>
+    <div class="subtitle">Regional Office Jabalpur · PMJJBY &amp; PMSBY</div>
+  </div>
+</header>
+
+<main class="container">
+  <div id="message" role="status" aria-live="polite"></div>
+
+  <section class="panel">
+    <label for="solSelect">Select Branch / SOL ID</label>
+    <select id="solSelect">
+      <option value="">Loading authorized branches...</option>
+    </select>
+    <div id="branchName" class="subtitle" style="color:var(--muted)"></div>
+    <div id="busy" class="hidden">Please wait...</div>
+  </section>
+
+  <section class="section">
+    <div class="section-title">Scheme Overview</div>
+    <div class="cards">
+      <article class="scheme-card">
+        <h3>PMJJBY</h3>
+        <div class="count" id="pmjTotal">—</div>
+        <div style="font-size:12px;color:var(--muted)">Total customer records</div>
+        <div class="metrics">
+          <div class="metric">Enrolled<strong id="pmjEnrolled">—</strong></div>
+          <div class="metric">Not enrolled<strong id="pmjNot">—</strong></div>
+          <div class="metric">Pending<strong id="pmjPending">—</strong></div>
+        </div>
+        <button class="primary" style="width:100%" onclick="showList('PMJJBY')">View PMJJBY List</button>
+      </article>
+
+      <article class="scheme-card">
+        <h3>PMSBY</h3>
+        <div class="count" id="pmsTotal">—</div>
+        <div style="font-size:12px;color:var(--muted)">Total customer records</div>
+        <div class="metrics">
+          <div class="metric">Enrolled<strong id="pmsEnrolled">—</strong></div>
+          <div class="metric">Not enrolled<strong id="pmsNot">—</strong></div>
+          <div class="metric">Pending<strong id="pmsPending">—</strong></div>
+        </div>
+        <button class="primary" style="width:100%" onclick="showList('PMSBY')">View PMSBY List</button>
+      </article>
+    </div>
+  </section>
+
+  <section class="section hidden" id="listSection">
+    <div class="panel">
+      <div class="record-top">
+        <div class="section-title" id="listTitle">Customer List</div>
+        <button class="secondary" onclick="closeList()">Close List</button>
+      </div>
+
+      <div class="toolbar">
+        <input id="searchBox" type="search" placeholder="Search name or account..." aria-label="Search customer records">
+        <select id="statusFilter" aria-label="Filter by status">
+          <option value="">All statuses</option>
+          <option value="ENROLLED">Enrolled</option>
+          <option value="NOT ENROLLED">Not Enrolled</option>
+          <option value="PENDING">Pending</option>
+        </select>
+      </div>
+      <div id="recordCount" class="subtitle" style="color:var(--muted)"></div>
+      <div id="records"></div>
+    </div>
+  </section>
+
+  <section class="section hidden" id="editSection">
+    <div class="panel">
+      <div class="record-top">
+        <div class="section-title">Customer Details &amp; Update</div>
+        <button class="secondary" onclick="closeEdit()">Close</button>
+      </div>
+
+      <div id="fullDetails" class="details-grid"></div>
+
+      <hr style="border:0;border-top:1px solid var(--border);margin:18px 0">
+
+      <form id="editForm">
+        <div class="form-field">
+          <label for="editStatus">Status *</label>
+          <select id="editStatus" required>
+            <option value="">Select status</option>
+            <option value="Enrolled">Enrolled</option>
+            <option value="Not Enrolled">Not Enrolled</option>
+          </select>
+        </div>
+        <div class="form-field">
+          <label for="editRemark">Remark <span id="remarkRequired"></span></label>
+          <textarea id="editRemark" maxlength="1000" placeholder="Enter reason if not enrolled"></textarea>
+          <div id="remarkHelp" class="subtitle" style="color:var(--muted)">Optional for Enrolled.</div>
+        </div>
+        <div class="actions">
+          <button type="submit" class="primary" id="saveBtn">Save Status</button>
+          <button type="button" class="outline" onclick="closeEdit()">Cancel</button>
+        </div>
+      </form>
+    </div>
+  </section>
+</main>
+
+<footer>MPGB · Regional Office Jabalpur</footer>
+
+<script>
+/*
+ * API CONFIGURATION
+ *
+ * This page requires a JSON API in Code.gs.
+ * A deployed Apps Script URL alone is not enough: Code.gs
+ * must implement the action names used below.
+ */
+const API_URL =
+  'https://script.google.com/macros/s/AKfycbzyXYoC3c6efIjE7qg82ZFKmvMe0DTQkXn9KuVpp11KLtdMLfRfRKmBS_H-To4UjyZI/exec';
+
+const $ = id => document.getElementById(id);
+
+let selectedSol = '';
+let selectedScheme = '';
+let currentRecords = [];
+let editingRecord = null;
+let saving = false;
+
+function message(text, type='info') {
+  $('message').innerHTML = '';
+  if (!text) return;
+  const box = document.createElement('div');
+  box.className = 'message ' + type;
+  box.textContent = text;
+  $('message').appendChild(box);
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+
+function busy(on, text='Please wait...') {
+  $('busy').textContent = text;
+  $('busy').classList.toggle('hidden', !on);
+}
+
+async function api(action, data={}) {
+  /*
+   * The backend must accept POST requests with a JSON body
+   * and return JSON responses. For cross-origin deployment,
+   * test the endpoint from the actual GitHub Pages URL.
+   */
+  let response;
+  try {
+    response = await fetch(API_URL, {
+      method:'POST',
+      headers:{'Content-Type':'text/plain;charset=utf-8'},
+      body:JSON.stringify({action,...data}),
+      redirect:'follow'
+    });
+  } catch (err) {
+    throw new Error(
+      'Cannot connect to Apps Script API. Check deployment access, ' +
+      'API compatibility and cross-origin requests.'
+    );
+  }
+
+  if (!response.ok) {
+    throw new Error('API request failed: HTTP ' + response.status);
+  }
+
+  const result = await response.json();
+
+  if (result.success === false || result.error) {
+    throw new Error(result.error || result.message || 'Request failed.');
+  }
+
+  return result.data !== undefined ? result.data : result;
+}
+
+function escapeHtml(value) {
+  return String(value ?? '').replace(/[&<>"']/g, char => ({
+    '&':'&amp;','<':'&lt;','>':'&gt;',
+    '"':'&quot;',"'":'&#39;'
+  }[char]));
+}
+
+function normalizedStatus(status) {
+  const value = String(status || '').trim().toUpperCase();
+  if (value === 'ENROLLED') return 'ENROLLED';
+  if (value === 'NOT ENROLLED') return 'NOT ENROLLED';
+  return 'PENDING';
+}
+
+async function loadBranches() {
+  busy(true,'Loading authorized branches...');
+  try {
+    const result = await api('getBranches');
+    const branches = Array.isArray(result) ? result : (result.branches || []);
+    $('solSelect').innerHTML = '<option value="">Select branch</option>';
+
+    branches.forEach(branch => {
+      const option = document.createElement('option');
+      option.value = String(branch.solId ?? branch.solID ?? '');
+      option.textContent = option.value + ' - ' +
+        String(branch.branchName ?? branch.name ?? '');
+      $('solSelect').appendChild(option);
+    });
+
+    if (!branches.length) {
+      message('No authorized branches were returned. Check ACCESS settings.', 'error');
+    }
+  } catch (err) {
+    message(err.message, 'error');
+    $('solSelect').innerHTML = '<option value="">Unable to load branches</option>';
+  } finally {
+    busy(false);
+  }
+}
+
+$('solSelect').addEventListener('change', async event => {
+  selectedSol = event.target.value;
+  selectedScheme = '';
+  closeList();
+  closeEdit();
+  resetSummary();
+
+  const option = event.target.selectedOptions[0];
+  $('branchName').textContent = selectedSol ? option.textContent : '';
+
+  if (!selectedSol) return;
+  await loadSummary();
+});
+
+function resetSummary() {
+  ['pmjTotal','pmjEnrolled','pmjNot','pmjPending',
+   'pmsTotal','pmsEnrolled','pmsNot','pmsPending']
+    .forEach(id => $(id).textContent = '—');
+}
+
+async function loadSummary() {
+  busy(true,'Loading scheme summary...');
+  try {
+    const result = await api('getSchemeSummary',{solId:selectedSol});
+    renderSummary(result);
+  } catch(err) {
+    message(err.message,'error');
+  } finally {
+    busy(false);
+  }
+}
+
+function renderSummary(result) {
+  const pmj = result.PMJJBY || result.pmjjby || {};
+  const pms = result.PMSBY || result.pmsby || {};
+  const set = (id,val) => $(id).textContent = Number(val || 0);
+
+  set('pmjTotal',pmj.total);
+  set('pmjEnrolled',pmj.enrolled);
+  set('pmjNot',pmj.notEnrolled);
+  set('pmjPending',pmj.pending);
+  set('pmsTotal',pms.total);
+  set('pmsEnrolled',pms.enrolled);
+  set('pmsNot',pms.notEnrolled);
+  set('pmsPending',pms.pending);
+}
+
+async function showList(scheme) {
+  if (!selectedSol) {
+    message('Please select a branch first.','error');
+    return;
+  }
+
+  selectedScheme = scheme;
+  closeEdit();
+  $('listSection').classList.remove('hidden');
+  $('listTitle').textContent = scheme + ' Customer List';
+  $('records').innerHTML = '';
+  $('searchBox').value = '';
+  $('statusFilter').value = '';
+  busy(true,'Loading customer list...');
+
+  try {
+    const result = await api('getRecords',{
+      solId:selectedSol,
+      scheme:scheme
+    });
+
+    currentRecords = Array.isArray(result) ? result : (result.records || []);
+    renderRecords();
+    $('listSection').scrollIntoView({behavior:'smooth',block:'start'});
+  } catch(err) {
+    message(err.message,'error');
+  } finally {
+    busy(false);
+  }
+}
+
+function closeList() {
+  $('listSection').classList.add('hidden');
+  currentRecords = [];
+  $('records').innerHTML = '';
+}
+
+$('searchBox').addEventListener('input',renderRecords);
+$('statusFilter').addEventListener('change',renderRecords);
+
+function renderRecords() {
+  const query = $('searchBox').value.trim().toLowerCase();
+  const filter = $('statusFilter').value;
+  const container = $('records');
+  container.innerHTML = '';
+
+  const filtered = currentRecords.filter(record => {
+    const searchable = [
+      record.customerName,record.name,record.accountNumber,
+      record.account,record.status,record.remark
+    ].join(' ').toLowerCase();
+
+    return searchable.includes(query) &&
+      (!filter || normalizedStatus(record.status) === filter);
+  });
+
+  $('recordCount').textContent =
+    filtered.length + ' records shown · ' + currentRecords.length + ' total';
+
+  if (!filtered.length) {
+    container.textContent = 'No records found.';
+    return;
+  }
+
+  filtered.forEach(record => {
+    const status = normalizedStatus(record.status);
+    const name = record.customerName ?? record.name ?? '';
+    const account = record.accountNumber ?? record.account ?? '';
+    const rowNumber = record.rowNumber;
+
+    const card = document.createElement('article');
+    card.className = 'record';
+
+    const top = document.createElement('div');
+    top.className = 'record-top';
+
+    const identity = document.createElement('div');
+    const title = document.createElement('div');
+    title.className = 'customer-name';
+    title.textContent = name || 'Customer name unavailable';
+
+    const acct = document.createElement('div');
+    acct.className = 'account';
+    acct.textContent = 'Account: ' + (account || '—');
+
+    identity.append(title,acct);
+
+    const badge = document.createElement('span');
+    badge.className = 'status' +
+      (status === 'ENROLLED' ? ' enrolled' :
+       status === 'NOT ENROLLED' ? ' not-enrolled' : '');
+    badge.textContent = status === 'PENDING' ? 'Pending' :
+      status === 'ENROLLED' ? 'Enrolled' : 'Not Enrolled';
+
+    top.append(identity,badge);
+
+    const bottom = document.createElement('div');
+    bottom.className = 'record-bottom';
+
+    const remark = document.createElement('div');
+    remark.className = 'remark-preview';
+    remark.textContent = 'Remark: ' + (record.remark || '—');
+
+    const edit = document.createElement('button');
+    edit.className = 'secondary';
+    edit.textContent = 'Edit';
+    edit.addEventListener('click',() => editRecord(record));
+
+    bottom.append(remark,edit);
+    card.append(top,bottom);
+    container.appendChild(card);
+  });
+}
+
+async function editRecord(record) {
+  const rowNumber = Number(record.rowNumber);
+
+  if (!Number.isInteger(rowNumber)) {
+    message('Record row number is missing. Check the backend response.','error');
+    return;
+  }
+
+  editingRecord = {
+    solId:selectedSol,
+    scheme:selectedScheme,
+    rowNumber:rowNumber
+  };
+
+  busy(true,'Loading customer details...');
+  try {
+    const result = await api('getRecordDetails',editingRecord);
+    const details = result.record || result;
+    renderDetails(details);
+
+    $('editStatus').value =
+      normalizedStatus(details.status) === 'PENDING'
+        ? '' : (normalizedStatus(details.status) === 'ENROLLED'
+          ? 'Enrolled' : 'Not Enrolled');
+
+    $('editRemark').value = details.remark || '';
+    updateRemarkRule();
+
+    $('editSection').classList.remove('hidden');
+    $('editSection').scrollIntoView({behavior:'smooth',block:'start'});
+  } catch(err) {
+    message(err.message,'error');
+  } finally {
+    busy(false);
+  }
+}
+
+function renderDetails(d) {
+  const fields = [
+    ['SOL ID',d.solId],
+    ['Customer Name',d.customerName ?? d.name],
+    ['CIF ID',d.cifId],
+    ['Account Number',d.accountNumber],
+    ['Scheme Code',d.schemeCode],
+    ['Scheme Type',d.schemeType],
+    ['Date of Birth',d.dob],
+    ['Account Open Date',d.accountOpenDate],
+    ['Mobile Number',d.mobileNumber],
+    ['PAN / Form 60',d.panForm60],
+    ['Clear Balance',d.clearBalance]
+  ];
+
+  const container = $('fullDetails');
+  container.innerHTML = '';
+
+  fields.forEach(([label,value]) => {
+    const item = document.createElement('div');
+    const heading = document.createElement('div');
+    heading.className = 'field-label';
+    heading.textContent = label;
+
+    const content = document.createElement('div');
+    content.className = 'field-value';
+    content.textContent = value || '—';
+
+    item.append(heading,content);
+    container.appendChild(item);
+  });
+}
+
+$('editStatus').addEventListener('change',updateRemarkRule);
+
+function updateRemarkRule() {
+  const required = $('editStatus').value === 'Not Enrolled';
+  $('editRemark').required = required;
+  $('remarkRequired').textContent = required ? '(Required *)' : '(Optional)';
+  $('remarkHelp').textContent = required
+    ? 'Enter a reason before saving.'
+    : 'Optional for Enrolled.';
+}
+
+$('editForm').addEventListener('submit',async event => {
+  event.preventDefault();
+  if (saving || !editingRecord) return;
+
+  const status = $('editStatus').value;
+  const remark = $('editRemark').value.trim();
+
+  if (!status) {
+    message('Please select a status.','error');
+    return;
+  }
+
+  if (status === 'Not Enrolled' && !remark) {
+    message('Remark is compulsory when status is Not Enrolled.','error');
+    $('editRemark').focus();
+    return;
+  }
+
+  saving = true;
+  $('saveBtn').disabled = true;
+
+  try {
+    await api('saveRecord',{
+      ...editingRecord,
+      status:status,
+      remark:remark
+    });
+
+    message('Status saved successfully.','success');
+    closeEdit();
+    await showList(selectedScheme);
+    await loadSummary();
+  } catch(err) {
+    message(err.message,'error');
+  } finally {
+    saving = false;
+    $('saveBtn').disabled = false;
+  }
+});
+
+function closeEdit() {
+  $('editSection').classList.add('hidden');
+  $('fullDetails').innerHTML = '';
+  $('editForm').reset();
+  editingRecord = null;
+}
+
+loadBranches();
+</script>
+</body>
+</html>
