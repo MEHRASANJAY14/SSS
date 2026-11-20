@@ -544,8 +544,6 @@
     }
 
 </style>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.2/jspdf.umd.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.4/jspdf.plugin.autotable.min.js"></script>
 </head>
 
 <body>
@@ -624,7 +622,7 @@
     <div id="message" class="message"></div>
 
     <div class="region-help">
-      All candidates appear below on opening. Use Global Search to filter all regions, or Region → Post → Load Candidates. Select a candidate from the dropdown to show only that candidate below.
+      Search globally or select Region → Post → Load Candidates. Candidate details appear only after selecting a name from the dropdown.
     </div>
 
     <div id="results">
@@ -637,7 +635,7 @@
   <!-- PDF DOWNLOAD -->
   <div class="pdf-toolbar">
     <button class="pdf-download" type="button" onclick="downloadAttendancePDF()">
-      &#128196; Download Attendance Summary PDF
+      &#128196; Save Attendance Summary as PDF
     </button>
   </div>
 
@@ -827,8 +825,11 @@
         document.getElementById("search").value = "";
         document.getElementById("globalSearch").value = "";
         loadedRegion = "";
-        activeGlobalSearch = true;
-        renderCandidateResults(candidates);
+        activeGlobalSearch = false;
+        document.getElementById("candidateSelect").innerHTML =
+          '<option value="">Select candidate after searching</option>';
+        document.getElementById("results").innerHTML =
+          '<div class="empty">Search globally or select Region and Post, then choose a candidate from the dropdown.</div>';
 
         return apiGet("summary");
       })
@@ -897,12 +898,36 @@
     activeGlobalSearch = true;
     document.getElementById("search").value = "";
     const q = document.getElementById("globalSearch").value.trim().toLowerCase();
-    renderCandidateResults(candidates.filter(function(c) {
-      return !q ||
-        String(c.employeeId || "").toLowerCase().includes(q) ||
+    const select = document.getElementById("candidateSelect");
+    document.getElementById("results").innerHTML =
+      '<div class="empty">' +
+      (q ? 'Select a candidate from the dropdown to view details.' :
+           'Enter Employee ID, Name or Roll Number, then select a candidate.') +
+      '</div>';
+
+    if (!q) {
+      select.innerHTML = '<option value="">Type in Global Search first</option>';
+      return;
+    }
+
+    const matches = candidates.filter(function(c) {
+      return String(c.employeeId || "").toLowerCase().includes(q) ||
         String(c.name || "").toLowerCase().includes(q) ||
         String(c.rollNumber || "").toLowerCase().includes(q);
-    }));
+    });
+
+    select.innerHTML = '<option value="">Select candidate (' + matches.length + ' found)</option>' +
+      matches.map(function(c) {
+        return '<option value="' + Number(c.rowNumber) + '">' +
+          escapeHTML(c.name) + ' | ' + escapeHTML(c.employeeId) +
+          ' | Roll: ' + escapeHTML(c.rollNumber) + ' | ' + escapeHTML(c.region) +
+          '</option>';
+      }).join("");
+
+    if (!matches.length) {
+      document.getElementById("results").innerHTML =
+        '<div class="empty">No matching candidate found.</div>';
+    }
   }
 
   function searchCandidates() {
@@ -927,41 +952,47 @@
       return regionMatch && postMatch && textMatch;
     });
 
-    renderCandidateResults(filtered);
-  }
-
-  function renderCandidateResults(filtered) {
     const select = document.getElementById("candidateSelect");
-    const previous = select.value;
-    select.innerHTML = '<option value="">Select candidate from list (' +
-      filtered.length + ')</option>' + filtered.map(function(c) {
+    select.innerHTML = '<option value="">Select candidate (' + filtered.length + ' found)</option>' +
+      filtered.map(function(c) {
         return '<option value="' + Number(c.rowNumber) + '">' +
           escapeHTML(c.name) + ' | ' + escapeHTML(c.employeeId) +
           ' | Roll: ' + escapeHTML(c.rollNumber) + '</option>';
       }).join("");
 
-    if (filtered.some(c => String(c.rowNumber) === previous)) select.value = previous;
+    results.innerHTML = '<div class="empty">' +
+      (filtered.length ? 'Select a candidate from the dropdown to view details.' :
+                         'No matching candidate found.') +
+      '</div>';
+  }
 
-    const results = document.getElementById("results");
-    if (!filtered.length) {
-      results.innerHTML = '<div class="empty">No matching candidate found.</div>';
-      return;
-    }
-    results.innerHTML = filtered.map(createCandidateCard).join("");
+  function renderCandidateResults(filtered) {
+    const select = document.getElementById("candidateSelect");
+    select.innerHTML = '<option value="">Select candidate (' + filtered.length + ' found)</option>' +
+      filtered.map(function(c) {
+        return '<option value="' + Number(c.rowNumber) + '">' +
+          escapeHTML(c.name) + ' | ' + escapeHTML(c.employeeId) +
+          ' | Roll: ' + escapeHTML(c.rollNumber) + '</option>';
+      }).join("");
+
+    document.getElementById("results").innerHTML =
+      '<div class="empty">' +
+      (filtered.length ? 'Select a candidate from the dropdown to view details.' :
+                         'No matching candidate found.') +
+      '</div>';
   }
 
   function selectCandidateFromList() {
     const rowNumber = Number(document.getElementById("candidateSelect").value);
     if (!rowNumber) {
-      if (activeGlobalSearch) globalSearchCandidates();
-      else if (loadedRegion) searchCandidates();
+      document.getElementById("results").innerHTML =
+        '<div class="empty">Select a candidate from the dropdown to view details.</div>';
       return;
     }
     const candidate = candidates.find(c => Number(c.rowNumber) === rowNumber);
     if (!candidate) return;
     document.getElementById("results").innerHTML = createCandidateCard(candidate);
   }
-
 
   function updateLocalDashboard() {
     const total = candidates.length;
@@ -1127,222 +1158,70 @@
 
   document.addEventListener("DOMContentLoaded", loadCandidates);
   /****************************************
-   * GENERATE LATEST ATTENDANCE SUMMARY PDF
+   * PDF REPORT - NO EXTERNAL LIBRARY
    ****************************************/
-  async function downloadAttendancePDF() {
-    const button = document.querySelector(".pdf-download");
-
-    try {
-      if (!window.jspdf || !window.jspdf.jsPDF) {
-        throw new Error("PDF library could not load. Check internet connection and refresh.");
-      }
-
-      if (button) {
-        button.disabled = true;
-        button.textContent = "Generating PDF...";
-      }
-      showMessage("Fetching latest attendance data...", "success");
-
-      // Always fetch fresh values from the Google Sheet API.
-      const responses = await Promise.all([
-        apiGet("candidates"),
-        apiGet("summary")
-      ]);
-
-      const latestCandidates = Array.isArray(responses[0]) ? responses[0] : [];
-      const summary = responses[1] || {};
-      const rows = Array.isArray(summary.rows) ? summary.rows : [];
-
-      // Keep the visible dashboard in sync with the report.
-      candidates = latestCandidates;
-      renderSummary(summary);
-      searchCandidates();
-
-      const jsPDF = window.jspdf.jsPDF;
-      const doc = new jsPDF({
-        orientation: "landscape",
-        unit: "mm",
-        format: "a4"
-      });
-
-      const pageWidth = doc.internal.pageSize.getWidth();
-      const pageHeight = doc.internal.pageSize.getHeight();
-
-      // Header band
-      doc.setFillColor(0, 77, 38);
-      doc.rect(0, 0, pageWidth, 29, "F");
-      doc.setTextColor(255, 255, 255);
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(17);
-      doc.text("MPGB PROMOTION EXAMINATION", pageWidth / 2, 11, {align:"center"});
-      doc.setFontSize(12);
-      doc.text("ATTENDANCE SUMMARY REPORT", pageWidth / 2, 20, {align:"center"});
-
-      // Date and overall counts
-      doc.setTextColor(65, 65, 65);
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(9);
-      doc.text("Report generated: " + new Date().toLocaleString("en-IN"), 14, 36);
-
-      const totals = [
-        ["TOTAL CANDIDATES", Number(summary.total || 0)],
-        ["PRESENT", Number(summary.present || 0)],
-        ["ABSENT", Number(summary.absent || 0)],
-        ["NOT MARKED", Number(summary.pending || 0)]
-      ];
-
-      const gap = 4;
-      const cardWidth = (pageWidth - 28 - gap * 3) / 4;
-      totals.forEach(function(item, index) {
-        const x = 14 + index * (cardWidth + gap);
-        doc.setFillColor(240, 247, 242);
-        doc.roundedRect(x, 41, cardWidth, 19, 2, 2, "F");
-        doc.setTextColor(0, 85, 40);
-        doc.setFont("helvetica", "bold");
-        doc.setFontSize(14);
-        doc.text(String(item[1]), x + cardWidth / 2, 49, {align:"center"});
-        doc.setFont("helvetica", "normal");
-        doc.setFontSize(7.5);
-        doc.text(item[0], x + cardWidth / 2, 56, {align:"center"});
-      });
-
-      doc.setTextColor(0, 80, 38);
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(11);
-      doc.text("REGION-WISE AND POST-WISE ATTENDANCE", 14, 69);
-
-      // Add region headings, post rows and subtotals.
-      const body = [];
-      let activeRegion = null;
-      let subtotal = null;
-
-      rows.forEach(function(r) {
-        const region = String(r.region || "NOT SPECIFIED");
-        if (activeRegion !== region) {
-          if (subtotal) {
-            body.push([
-              activeRegion + " SUBTOTAL", "",
-              subtotal.present, subtotal.absent,
-              subtotal.pending, subtotal.total
-            ]);
-          }
-
-          activeRegion = region;
-          subtotal = {present:0, absent:0, pending:0, total:0};
-          body.push(["REGION: " + region, "", "", "", "", ""]);
-        }
-
-        const present = Number(r.present || 0);
-        const absent = Number(r.absent || 0);
-        const pending = Number(r.pending || 0);
-        const total = Number(r.total || 0);
-
-        subtotal.present += present;
-        subtotal.absent += absent;
-        subtotal.pending += pending;
-        subtotal.total += total;
-
-        body.push([region, String(r.post || ""), present, absent, pending, total]);
-      });
-
-      if (subtotal) {
-        body.push([
-          activeRegion + " SUBTOTAL", "",
-          subtotal.present, subtotal.absent,
-          subtotal.pending, subtotal.total
-        ]);
-      }
-
-      body.push([
-        "GRAND TOTAL", "",
-        Number(summary.present || 0),
-        Number(summary.absent || 0),
-        Number(summary.pending || 0),
-        Number(summary.total || 0)
-      ]);
-
-      if (typeof doc.autoTable !== "function") {
-        throw new Error("PDF table plugin did not load. Please refresh the page or try another network.");
-      }
-
-      doc.autoTable({
-        startY: 74,
-        head: [["Region", "Post", "Present", "Absent", "Not Marked", "Total"]],
-        body: body,
-        theme: "grid",
-        margin: {left:14, right:14, bottom:15},
-        styles: {
-          font: "helvetica",
-          fontSize: 8,
-          cellPadding: 2.3,
-          overflow: "linebreak",
-          lineColor: [215, 225, 217],
-          lineWidth: 0.15,
-          textColor: [45, 55, 48]
-        },
-        headStyles: {
-          fillColor: [0, 102, 51],
-          textColor: [255, 255, 255],
-          fontStyle: "bold"
-        },
-        columnStyles: {
-          0: {cellWidth: 55},
-          1: {cellWidth: "auto"},
-          2: {cellWidth: 25, halign:"center"},
-          3: {cellWidth: 25, halign:"center"},
-          4: {cellWidth: 29, halign:"center"},
-          5: {cellWidth: 22, halign:"center"}
-        },
-        didParseCell: function(data) {
-          if (data.section !== "body") return;
-          const first = String(data.row.raw[0] || "");
-
-          if (first.indexOf("REGION: ") === 0) {
-            data.cell.styles.fillColor = [222, 240, 226];
-            data.cell.styles.textColor = [0, 80, 38];
-            data.cell.styles.fontStyle = "bold";
-          } else if (first.indexOf("SUBTOTAL") !== -1) {
-            data.cell.styles.fillColor = [240, 246, 241];
-            data.cell.styles.fontStyle = "bold";
-          } else if (first === "GRAND TOTAL") {
-            data.cell.styles.fillColor = [207, 232, 213];
-            data.cell.styles.textColor = [0, 70, 30];
-            data.cell.styles.fontStyle = "bold";
-          }
-        },
-        didDrawPage: function() {
-          doc.setFont("helvetica", "normal");
-          doc.setFontSize(8);
-          doc.setTextColor(110, 110, 110);
-          doc.text("MPGB Promotion Exam Attendance", 14, pageHeight - 7);
-          doc.text(
-            "Page " + doc.internal.getNumberOfPages(),
-            pageWidth - 14,
-            pageHeight - 7,
-            {align:"right"}
-          );
-        }
-      });
-
-      const today = new Date();
-      const datePart = today.getFullYear() + "-" +
-        String(today.getMonth() + 1).padStart(2, "0") + "-" +
-        String(today.getDate()).padStart(2, "0");
-
-      doc.save("MPGB_Attendance_Summary_" + datePart + ".pdf");
-      showMessage("PDF generated successfully using the latest Google Sheet data.", "success");
-
-    } catch (error) {
-      console.error(error);
-      showError(error);
-    } finally {
-      if (button) {
-        button.disabled = false;
-        button.innerHTML = "&#128196; Download Attendance Summary PDF";
-      }
+  function downloadAttendancePDF() {
+    const table = document.querySelector(".table-wrap table");
+    if (!table || !document.getElementById("summary").querySelector("tr")) {
+      showMessage("Summary is not ready. Please wait and try again.", "error");
+      return;
     }
-  }
 
+    const win = window.open("", "_blank");
+    if (!win) {
+      showMessage("Please allow pop-ups for this site to create the PDF.", "error");
+      return;
+    }
+
+    const stats = [
+      ["TOTAL CANDIDATES", document.getElementById("total").textContent],
+      ["PRESENT", document.getElementById("present").textContent],
+      ["ABSENT", document.getElementById("absent").textContent],
+      ["NOT MARKED", document.getElementById("pending").textContent]
+    ].map(function(x) {
+      return '<div class="stat"><b>' + escapeHTML(x[1]) + '</b><span>' +
+        escapeHTML(x[0]) + '</span></div>';
+    }).join("");
+
+    const css = `
+      @page { size: A4 landscape; margin: 12mm; }
+      * { box-sizing: border-box; }
+      body { font-family: Arial,sans-serif; color:#26352c; margin:0; }
+      header { background:#006633; color:white; padding:16px; text-align:center;
+        -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+      h1 { font-size:20px; margin:0; } h2 { font-size:13px; margin:5px 0 0; }
+      .date { font-size:10px; margin:12px 0; }
+      .stats { display:flex; gap:9px; margin-bottom:15px; }
+      .stat { flex:1; text-align:center; padding:9px; border:1px solid #c8dfce;
+        background:#edf6ef; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+      .stat b { display:block; color:#006633; font-size:18px; }
+      .stat span { font-size:9px; }
+      h3 { font-size:12px; margin:12px 0 8px; }
+      table { width:100%; border-collapse:collapse; font-size:9px; }
+      th,td { border:1px solid #d2ddd5; padding:6px 7px; text-align:left; }
+      th { background:#006633; color:white; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+      .region-heading { background:#e4f1e7; font-weight:bold; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+      .subtotal { background:#f1f6f2; font-weight:bold; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+      .grand-total { background:#d5ead9; font-weight:bold; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+      tr { page-break-inside:avoid; break-inside:avoid; } thead { display:table-header-group; }
+      .foot { margin-top:12px; font-size:9px; color:#777; }
+      .tip { background:#fff4d5; padding:8px; font-size:11px; margin-top:12px; }
+      @media print { .tip { display:none; } }
+    `;
+
+    win.document.open();
+    win.document.write('<!doctype html><html><head><meta charset="utf-8"><title>MPGB Attendance Summary</title><style>' +
+      css + '</style></head><body><header><h1>MPGB PROMOTION EXAMINATION</h1>' +
+      '<h2>ATTENDANCE SUMMARY REPORT</h2></header><div class="date">Generated: ' +
+      escapeHTML(new Date().toLocaleString("en-IN")) + '</div><div class="stats">' +
+      stats + '</div><h3>REGION-WISE AND POST-WISE ATTENDANCE</h3>' +
+      table.outerHTML + '<div class="foot">MPGB Promotion Examination | Attendance Management</div>' +
+      '<div class="tip">In the print dialog, choose <b>Save as PDF</b> as the destination.</div>' +
+      '</body></html>');
+    win.document.close();
+    win.focus();
+    setTimeout(function() { win.print(); }, 600);
+  }
 
 
 </script>
