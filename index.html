@@ -96,8 +96,10 @@
     }
 
     .search-area {
-      display: flex;
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
       gap: 10px;
+      align-items: center;
     }
 
     input, select {
@@ -390,6 +392,15 @@
     @media(max-width:700px) {
       .pdf-toolbar, .pdf-download { width: 100%; }
       .pdf-download { font-size: 14px; }
+    }
+
+
+    #globalSearch, #candidateSelect { display: block; width: 100%; min-width: 0; }
+    #candidateSelect { grid-column: span 2; }
+    @media(max-width:700px) {
+      .search-area { display: grid; grid-template-columns: 1fr; }
+      #candidateSelect { grid-column: auto; }
+      #globalSearch, #candidateSelect { width: 100%; }
     }
 
     /* Responsive refinements */
@@ -745,7 +756,7 @@
     <div id="message" class="message"></div>
 
     <div class="region-help">
-      Select Region → Post → Load Candidates. Use Global Search to find candidates across all regions. Use the candidate dropdown to jump to a candidate.
+      All candidates appear below on opening. Use Global Search to filter all regions, or Region → Post → Load Candidates. Select a candidate from the dropdown to show only that candidate below.
     </div>
 
     <div id="results">
@@ -909,7 +920,7 @@
     }
 
     if (activeGlobalSearch) globalSearchCandidates(); else searchCandidates();
-    showMessage("Attendance saved successfully. Marking buttons are now disabled.", "success");
+    showMessage("Attendance Marked Successfully. " + pending.status + " recorded.", "success");
     // Refresh only the summary in the background.
     apiGet("summary").then(renderSummary).catch(err => console.warn(err));
   });
@@ -936,9 +947,10 @@
 
         document.getElementById("search").disabled = true;
         document.getElementById("search").value = "";
+        document.getElementById("globalSearch").value = "";
         loadedRegion = "";
-        document.getElementById("results").innerHTML =
-          '<div class="empty">Select a region and click Load Candidates.</div>';
+        activeGlobalSearch = true;
+        renderCandidateResults(candidates);
 
         return apiGet("summary");
       })
@@ -1062,19 +1074,16 @@
 
   function selectCandidateFromList() {
     const rowNumber = Number(document.getElementById("candidateSelect").value);
-    if (!rowNumber) return;
-    const card = document.querySelector('[data-row-number="' + rowNumber + '"]');
-    if (card) {
-      card.scrollIntoView({behavior:"smooth", block:"center"});
-      card.style.outline = "3px solid #1c8b4a";
-      setTimeout(() => { card.style.outline = ""; }, 1300);
-    } else {
-      const candidate = candidates.find(c => Number(c.rowNumber) === rowNumber);
-      if (candidate) {
-        document.getElementById("results").innerHTML = createCandidateCard(candidate);
-      }
+    if (!rowNumber) {
+      if (activeGlobalSearch) globalSearchCandidates();
+      else if (loadedRegion) searchCandidates();
+      return;
     }
+    const candidate = candidates.find(c => Number(c.rowNumber) === rowNumber);
+    if (!candidate) return;
+    document.getElementById("results").innerHTML = createCandidateCard(candidate);
   }
+
 
   function updateLocalDashboard() {
     const total = candidates.length;
@@ -1143,7 +1152,7 @@
     candidate.attendance = status;
     updateLocalDashboard();
     if (activeGlobalSearch) globalSearchCandidates(); else searchCandidates();
-    showMessage(ynValue + " selected (" + status + "). Saving...", "success");
+    showMessage("Attendance Marked Successfully — " + status + ". Saving to server...", "success");
 
     busy = true;
     pendingAttendance = {rowNumber: rowNumber, status: status, previousStatus: previousStatus};
