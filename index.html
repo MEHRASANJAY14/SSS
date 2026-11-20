@@ -797,41 +797,69 @@
     showMessage(error && error.message ? error.message : String(error), "error");
   }
 
-  // JSONP GET: works from GitHub Pages without CORS fetch restrictions.
+  // JSONP GET: use the same simple callback name validated on mobile.
+  // Requests are queued because the Apps Script callback is intentionally stable.
+  let apiRequestQueue = Promise.resolve();
+
   function apiGet(action) {
-    return new Promise(function(resolve, reject) {
-      const callback = "mpgbCallback_" + Date.now() + "_" +
-        Math.floor(Math.random() * 100000);
-      const script = document.createElement("script");
-      const timeout = setTimeout(function() {
-        delete window[callback];
-        script.remove();
-        reject(new Error("API loading timeout. Check Apps Script deployment."));
-      }, 45000);
+    function runRequest() {
+      return new Promise(function(resolve, reject) {
+        const callback = "test";
+        const script = document.createElement("script");
+        let settled = false;
+        const previousCallback = window[callback];
 
-      window[callback] = function(result) {
-        clearTimeout(timeout);
-        delete window[callback];
-        script.remove();
-        if (result && result.success) {
-          resolve(result.data);
-        } else {
-          reject(new Error(result && result.error ? result.error : "API error"));
+        function cleanup() {
+          if (settled) return;
+          settled = true;
+          clearTimeout(timeout);
+          script.onload = null;
+          script.onerror = null;
+          if (script.parentNode) script.parentNode.removeChild(script);
+          if (typeof previousCallback === "undefined") {
+            try { delete window[callback]; } catch (e) { window[callback] = undefined; }
+          } else {
+            window[callback] = previousCallback;
+          }
         }
-      };
 
-      script.onerror = function() {
-        clearTimeout(timeout);
-        delete window[callback];
-        script.remove();
-        reject(new Error("Could not connect to Apps Script API."));
-      };
+        const timeout = setTimeout(function() {
+          cleanup();
+          reject(new Error("Apps Script API timed out. The test URL works, but this page did not receive its callback. Refresh and try again."));
+        }, 45000);
 
-      script.async = true;
-      script.src = API_URL + "?action=" + encodeURIComponent(action) +
-        "&callback=" + encodeURIComponent(callback) + "&_=" + Date.now();
-      document.body.appendChild(script);
-    });
+        window[callback] = function(result) {
+          cleanup();
+          if (result && result.success) {
+            resolve(result.data);
+          } else {
+            reject(new Error(result && result.error ? result.error : "Apps Script returned an unsuccessful response."));
+          }
+        };
+
+        script.onerror = function() {
+          cleanup();
+          reject(new Error("The browser could not load the Apps Script response. Check the connection and refresh the page."));
+        };
+
+        script.onload = function() {
+          // A successful JSONP script calls window.test before its load event.
+          if (!settled) {
+            cleanup();
+            reject(new Error("Apps Script loaded but did not call the expected JSONP callback. Check the API response format."));
+          }
+        };
+
+        script.async = true;
+        script.src = API_URL + "?action=" + encodeURIComponent(action) +
+          "&callback=" + callback + "&_=" + Date.now();
+        (document.head || document.body).appendChild(script);
+      });
+    }
+
+    const request = apiRequestQueue.then(runRequest, runRequest);
+    apiRequestQueue = request.then(function() {}, function() {});
+    return request;
   }
 
   let loadedRegion = "";
