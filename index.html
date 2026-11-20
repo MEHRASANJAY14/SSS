@@ -722,14 +722,17 @@
 
       <button class="refresh" onclick="loadSelectedRegion()">Load Candidates</button>
 
-      <select id="searchScope" aria-label="Search scope" onchange="searchCandidates()">
-        <option value="region">Selected Region</option>
-        <option value="global">Global Search (All Regions)</option>
-      </select>
-
       <input type="search" id="search"
-        placeholder="Search Employee ID / Name / Roll Number"
+        placeholder="Search in selected Region / Post"
         oninput="searchCandidates()" disabled>
+
+      <input type="search" id="globalSearch"
+        placeholder="Global Search: ID / Name / Roll Number"
+        oninput="globalSearchCandidates()">
+
+      <select id="candidateSelect" aria-label="Candidate list" onchange="selectCandidateFromList()">
+        <option value="">Candidate list will appear here</option>
+      </select>
 
       <button class="refresh" type="button" onclick="clearSearch()">✕ Clear</button>
 
@@ -742,7 +745,7 @@
     <div id="message" class="message"></div>
 
     <div class="region-help">
-      Select Region → Select Post → Load Candidates. Use Global Search to search across all regions.
+      Select Region → Post → Load Candidates. Use Global Search to find candidates across all regions. Use the candidate dropdown to jump to a candidate.
     </div>
 
     <div id="results">
@@ -882,6 +885,7 @@
 
   let loadedRegion = "";
   let loadedPost = "";
+  let activeGlobalSearch = false;
   let pendingAttendance = null;
 
   // Save acknowledgement. Candidate list is not reloaded after every mark.
@@ -904,7 +908,8 @@
       return;
     }
 
-    showMessage("Attendance saved successfully.", "success");
+    if (activeGlobalSearch) globalSearchCandidates(); else searchCandidates();
+    showMessage("Attendance saved successfully. Marking buttons are now disabled.", "success");
     // Refresh only the summary in the background.
     apiGet("summary").then(renderSummary).catch(err => console.warn(err));
   });
@@ -946,8 +951,10 @@
     const postSelect = document.getElementById("postSelect");
     loadedRegion = "";
     loadedPost = "";
+    activeGlobalSearch = false;
     document.getElementById("search").disabled = true;
     document.getElementById("search").value = "";
+    document.getElementById("globalSearch").value = "";
     postSelect.disabled = !region;
 
     const posts = Array.from(new Set(candidates
@@ -960,18 +967,22 @@
 
     document.getElementById("results").innerHTML =
       '<div class="empty">Choose a post (or All Posts), then click Load Candidates.</div>';
+    document.getElementById("candidateSelect").innerHTML =
+      '<option value="">Candidate list will appear after loading</option>';
   }
 
   function clearSearch() {
     document.getElementById("search").value = "";
-    document.getElementById("postSelect").value = "";
-    loadedPost = "";
-    if (loadedRegion || document.getElementById("searchScope").value === "global") {
+    document.getElementById("globalSearch").value = "";
+    document.getElementById("candidateSelect").value = "";
+    activeGlobalSearch = false;
+    if (loadedRegion) {
       searchCandidates();
-      document.getElementById("search").focus();
     } else {
       document.getElementById("results").innerHTML =
         '<div class="empty">Select a region and click Load Candidates.</div>';
+      document.getElementById("candidateSelect").innerHTML =
+        '<option value="">Candidate list will appear here</option>';
     }
   }
 
@@ -983,28 +994,42 @@
     }
     loadedRegion = region;
     loadedPost = document.getElementById("postSelect").value;
+    activeGlobalSearch = false;
     document.getElementById("search").disabled = false;
     document.getElementById("search").value = "";
+    document.getElementById("globalSearch").value = "";
     searchCandidates();
     showMessage("Candidates loaded: " + region +
       (loadedPost ? " / " + loadedPost : " / All Posts"), "success");
   }
 
+  function globalSearchCandidates() {
+    activeGlobalSearch = true;
+    document.getElementById("search").value = "";
+    const q = document.getElementById("globalSearch").value.trim().toLowerCase();
+    renderCandidateResults(candidates.filter(function(c) {
+      return !q ||
+        String(c.employeeId || "").toLowerCase().includes(q) ||
+        String(c.name || "").toLowerCase().includes(q) ||
+        String(c.rollNumber || "").toLowerCase().includes(q);
+    }));
+  }
+
   function searchCandidates() {
+    activeGlobalSearch = false;
     const results = document.getElementById("results");
     const q = document.getElementById("search").value.trim().toLowerCase();
-    const globalSearch = document.getElementById("searchScope").value === "global";
 
-    if (!globalSearch && !loadedRegion) {
+    if (!loadedRegion) {
       results.innerHTML =
         '<div class="empty">Select a region, choose a post and click Load Candidates.</div>';
       return;
     }
 
-    const selectedPost = globalSearch ? "" : document.getElementById("postSelect").value;
+    const selectedPost = document.getElementById("postSelect").value;
     const filtered = candidates.filter(function(c) {
-      const regionMatch = globalSearch || String(c.region || "").trim() === loadedRegion;
-      const postMatch = globalSearch || !selectedPost || String(c.post || "").trim() === selectedPost;
+      const regionMatch = String(c.region || "").trim() === loadedRegion;
+      const postMatch = !selectedPost || String(c.post || "").trim() === selectedPost;
       const textMatch = !q ||
         String(c.employeeId || "").toLowerCase().includes(q) ||
         String(c.name || "").toLowerCase().includes(q) ||
@@ -1012,11 +1037,43 @@
       return regionMatch && postMatch && textMatch;
     });
 
+    renderCandidateResults(filtered);
+  }
+
+  function renderCandidateResults(filtered) {
+    const select = document.getElementById("candidateSelect");
+    const previous = select.value;
+    select.innerHTML = '<option value="">Select candidate from list (' +
+      filtered.length + ')</option>' + filtered.map(function(c) {
+        return '<option value="' + Number(c.rowNumber) + '">' +
+          escapeHTML(c.name) + ' | ' + escapeHTML(c.employeeId) +
+          ' | Roll: ' + escapeHTML(c.rollNumber) + '</option>';
+      }).join("");
+
+    if (filtered.some(c => String(c.rowNumber) === previous)) select.value = previous;
+
+    const results = document.getElementById("results");
     if (!filtered.length) {
       results.innerHTML = '<div class="empty">No matching candidate found.</div>';
       return;
     }
     results.innerHTML = filtered.map(createCandidateCard).join("");
+  }
+
+  function selectCandidateFromList() {
+    const rowNumber = Number(document.getElementById("candidateSelect").value);
+    if (!rowNumber) return;
+    const card = document.querySelector('[data-row-number="' + rowNumber + '"]');
+    if (card) {
+      card.scrollIntoView({behavior:"smooth", block:"center"});
+      card.style.outline = "3px solid #1c8b4a";
+      setTimeout(() => { card.style.outline = ""; }, 1300);
+    } else {
+      const candidate = candidates.find(c => Number(c.rowNumber) === rowNumber);
+      if (candidate) {
+        document.getElementById("results").innerHTML = createCandidateCard(candidate);
+      }
+    }
   }
 
   function updateLocalDashboard() {
@@ -1036,7 +1093,7 @@
     const rowNumber = Number(c.rowNumber);
 
     return `
-      <div class="candidate">
+      <div class="candidate" data-row-number="${rowNumber}">
         <div class="candidate-top">
           <div class="candidate-name">${escapeHTML(c.name)}</div>
           <span class="status ${statusClass}">${escapeHTML(status)}</span>
@@ -1054,19 +1111,22 @@
 
         <div class="actions">
           <button class="btn-present ${status === "PRESENT" ? "active-present" : ""}"
-            onclick="markAttendance(${rowNumber}, 'PRESENT')" ${busy ? "disabled" : ""}>
-            ✓ PRESENT
+            onclick="markAttendance(${rowNumber}, 'Y')" ${(busy || status === "PRESENT" || status === "ABSENT") ? "disabled" : ""}>
+            Y - PRESENT
           </button>
           <button class="btn-absent ${status === "ABSENT" ? "active-absent" : ""}"
-            onclick="markAttendance(${rowNumber}, 'ABSENT')" ${busy ? "disabled" : ""}>
-            ✕ ABSENT
+            onclick="markAttendance(${rowNumber}, 'N')" ${(busy || status === "PRESENT" || status === "ABSENT") ? "disabled" : ""}>
+            N - ABSENT
           </button>
         </div>
       </div>`;
   }
 
-  function markAttendance(rowNumber, status) {
+  function markAttendance(rowNumber, ynValue) {
     if (busy) return;
+    const status = ynValue === "Y" ? "PRESENT" : "ABSENT";
+    if (ynValue !== "Y" && ynValue !== "N") return;
+
     const candidate = candidates.find(c => Number(c.rowNumber) === Number(rowNumber));
     if (!candidate) {
       showError("Candidate record not found.");
@@ -1074,16 +1134,16 @@
     }
 
     const previousStatus = String(candidate.attendance || "").toUpperCase();
-    if (previousStatus === status) {
-      showMessage("Already marked " + status + ".", "success");
+    if (previousStatus === "PRESENT" || previousStatus === "ABSENT") {
+      showMessage("Attendance already marked. Contact administrator for correction.", "error");
       return;
     }
 
-    // Optimistic update: show the new status immediately.
+    // Update the UI immediately. Y = PRESENT, N = ABSENT.
     candidate.attendance = status;
     updateLocalDashboard();
-    searchCandidates();
-    showMessage(status + " marked. Saving to Google Sheet...", "success");
+    if (activeGlobalSearch) globalSearchCandidates(); else searchCandidates();
+    showMessage(ynValue + " selected (" + status + "). Saving...", "success");
 
     busy = true;
     pendingAttendance = {rowNumber: rowNumber, status: status, previousStatus: previousStatus};
@@ -1100,6 +1160,9 @@
     loadedPost = "";
     document.getElementById("search").disabled = true;
     document.getElementById("search").value = "";
+    document.getElementById("globalSearch").value = "";
+    document.getElementById("candidateSelect").innerHTML = '<option value="">Candidate list will appear here</option>';
+    activeGlobalSearch = false;
     document.getElementById("postSelect").innerHTML = '<option value="">All Posts</option>';
     document.getElementById("postSelect").disabled = true;
     showMessage("Refreshing candidate and region list...", "success");
