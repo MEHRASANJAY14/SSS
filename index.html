@@ -804,13 +804,11 @@
   function apiGet(action) {
     function runRequest() {
       return new Promise(function(resolve, reject) {
-        const callback = "test";
+        const callback = "mpgbCallback";
         const script = document.createElement("script");
         script.type = "text/javascript";
         script.charset = "UTF-8";
-        // Apps Script may redirect to script.googleusercontent.com.
-        // Do not send the GitHub Pages referrer during that redirect.
-        script.referrerPolicy = "no-referrer";
+        // Keep the default browser referrer behavior for the Apps Script redirect.
         let settled = false;
         const previousCallback = window[callback];
 
@@ -844,7 +842,7 @@
 
         script.onerror = function() {
           cleanup();
-          reject(new Error("The Apps Script URL opens directly, but Chrome blocked the response as a script. Check that Apps Script doGet returns ContentService.MimeType.JAVASCRIPT (not JSON or TEXT), then deploy a new version. No frontend-only change can override a blocked response MIME type."));
+          reject(new Error("Mobile Chrome could not load the Apps Script JSONP script. The direct API test works, so check the published SSS/index.html version and retry with the proven mpgbCallback callback."));
         };
 
         script.onload = function() {
