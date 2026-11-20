@@ -2,7 +2,6 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <base target="_top">
   <meta name="viewport" content="width=device-width, initial-scale=1">
 
   <title>MPGB Promotion Attendance</title>
@@ -360,6 +359,65 @@
         font-size: 15px;
       }
     }
+
+    /* Responsive refinements */
+    html { -webkit-text-size-adjust: 100%; }
+    body { min-width: 320px; }
+    .container { width: 100%; }
+    .search-area input { min-width: 0; flex: 1; }
+    .candidate { min-width: 0; }
+    .detail strong { overflow-wrap: anywhere; word-break: break-word; }
+    .table-wrap { -webkit-overflow-scrolling: touch; }
+    button, input { min-height: 44px; }
+    button { touch-action: manipulation; }
+
+    @media (max-width: 700px) {
+      header { padding: 18px 12px; }
+      header h2 {
+        font-size: clamp(17px, 5vw, 21px);
+        line-height: 1.3;
+        letter-spacing: .2px;
+      }
+      header p { font-size: 12px; line-height: 1.45; }
+      .container { padding: 10px; }
+      .cards { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; }
+      .card { padding: 13px 12px; border-radius: 10px; }
+      .card .number { font-size: 25px; }
+      .card .caption { font-size: 12px; line-height: 1.3; }
+      .panel { padding: 14px 12px; margin-bottom: 13px; border-radius: 11px; }
+      .panel h3 { font-size: 16px; line-height: 1.35; margin-bottom: 13px; }
+      .search-area { display: flex; flex-direction: column; gap: 9px; }
+      .search-area input { width: 100%; font-size: 16px; padding: 12px; }
+      .refresh { width: 100%; padding: 12px; }
+      .candidate { padding: 13px 11px; margin-top: 10px; }
+      .candidate-top { align-items: flex-start; }
+      .candidate-name { font-size: 15px; line-height: 1.35; }
+      .status { flex-shrink: 0; }
+      .details { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 11px 9px; margin: 14px 0; }
+      .detail span { font-size: 10px; }
+      .detail strong { font-size: 12px; line-height: 1.35; }
+      .actions { gap: 8px; padding-top: 11px; }
+      .actions button { min-height: 46px; padding: 11px 7px; font-size: 13px; }
+      .table-wrap { margin: 0 -2px; }
+      table { min-width: 650px; font-size: 12px; }
+      th, td { padding: 10px 8px; }
+      .report-note { line-height: 1.45; }
+      footer { padding: 15px 8px; }
+    }
+
+    @media (max-width: 360px) {
+      .cards { gap: 7px; }
+      .card { padding: 11px 9px; }
+      .card .number { font-size: 22px; }
+      .details { grid-template-columns: 1fr 1fr; }
+      .candidate-top { flex-direction: column; }
+    }
+
+    @media (min-width: 701px) and (max-width: 950px) {
+      .cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .details { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+
   </style>
 </head>
 
@@ -474,452 +532,278 @@
   MPGB Promotion Examination | Attendance Management
 </footer>
 
+<iframe name="attendanceFrame" id="attendanceFrame" style="display:none"></iframe>
+<form id="attendanceForm" method="POST" target="attendanceFrame" style="display:none">
+  <input type="hidden" name="action" value="markAttendance">
+  <input type="hidden" name="rowNumber" id="postRowNumber">
+  <input type="hidden" name="status" id="postStatus">
+</form>
+
 <script>
+  // GitHub Pages frontend -> Google Apps Script JSON API
+  const API_URL = "https://script.google.com/macros/s/AKfycbyNg3J9OIjznFWqT6MzwYOthDtgq2wdVw_bZD4KjW7MP4x-rHXUGbg7JJx4Vmf7Xkup/exec";
 
   let candidates = [];
   let busy = false;
 
-  /******** LOAD CANDIDATES ********/
-
-  function loadCandidates() {
-
-    document.getElementById("results").innerHTML =
-      '<div class="loading">Loading candidates...</div>';
-
-    google.script.run
-
-      .withSuccessHandler(function(data) {
-
-        candidates = data || [];
-
-        searchCandidates();
-        loadSummary();
-
-      })
-
-      .withFailureHandler(showError)
-
-      .getCandidates();
-
-  }
-
-  /******** SEARCH ********/
-
-  function searchCandidates() {
-
-    const q = document.getElementById("search")
-      .value.trim().toLowerCase();
-
-    const filtered = candidates.filter(c => {
-
-      return (
-        String(c.id).toLowerCase().includes(q) ||
-        String(c.name).toLowerCase().includes(q) ||
-        String(c.roll).toLowerCase().includes(q)
-      );
-
-    });
-
-    const results = document.getElementById("results");
-
-    if (!filtered.length) {
-
-      results.innerHTML =
-        '<div class="empty">No matching candidate found.</div>';
-
-      return;
-
-    }
-
-    results.innerHTML = filtered.slice(0, 50)
-      .map(createCandidateCard).join("");
-
-  }
-
-  /******** CANDIDATE CARD ********/
-
-  function createCandidateCard(c) {
-
-    const status = c.status || "NOT MARKED";
-
-    let statusClass = "status-pending";
-
-    if (status === "PRESENT") {
-      statusClass = "status-present";
-    }
-
-    if (status === "ABSENT") {
-      statusClass = "status-absent";
-    }
-
-    return `
-
-      <div class="candidate">
-
-        <div class="candidate-top">
-
-          <div class="candidate-name">
-            ${escapeHTML(c.name)}
-          </div>
-
-          <span class="status ${statusClass}">
-            ${escapeHTML(status)}
-          </span>
-
-        </div>
-
-        <div class="details">
-
-          <div class="detail">
-            <span>Employee ID</span>
-            <strong>${escapeHTML(c.id)}</strong>
-          </div>
-
-          <div class="detail">
-            <span>Roll Number</span>
-            <strong>${escapeHTML(c.roll)}</strong>
-          </div>
-
-          <div class="detail">
-            <span>Post</span>
-            <strong>${escapeHTML(c.post)}</strong>
-          </div>
-
-          <div class="detail">
-            <span>Branch</span>
-            <strong>${escapeHTML(c.branch)}</strong>
-          </div>
-
-          <div class="detail">
-            <span>Region</span>
-            <strong>${escapeHTML(c.region)}</strong>
-          </div>
-
-          <div class="detail">
-            <span>Test Centre</span>
-            <strong>${escapeHTML(c.center)}</strong>
-          </div>
-
-          <div class="detail">
-            <span>Category</span>
-            <strong>${escapeHTML(c.category)}</strong>
-          </div>
-
-        </div>
-
-        <div class="actions">
-
-          <button
-            class="btn-present ${status === "PRESENT" ? "active-present" : ""}"
-            onclick="markAttendance('${escapeJS(c.id)}','PRESENT')"
-            ${busy ? "disabled" : ""}>
-            ✓ PRESENT
-          </button>
-
-          <button
-            class="btn-absent ${status === "ABSENT" ? "active-absent" : ""}"
-            onclick="markAttendance('${escapeJS(c.id)}','ABSENT')"
-            ${busy ? "disabled" : ""}>
-            ✕ ABSENT
-          </button>
-
-        </div>
-
-      </div>
-
-    `;
-
-  }
-
-  /******** MARK ATTENDANCE ********/
-
-  function markAttendance(id, status) {
-
-    if (busy) return;
-
-    const candidate = candidates.find(c => c.id === id);
-
-    if (!candidate) {
-      showError("Candidate not found.");
-      return;
-    }
-
-    const confirmation = confirm(
-      "Confirm attendance?\n\n" +
-      "Name: " + candidate.name +
-      "\nEmployee ID: " + candidate.id +
-      "\nRoll Number: " + candidate.roll +
-      "\nStatus: " + status
-    );
-
-    if (!confirmation) return;
-
-    busy = true;
-
-    searchCandidates();
-
-    showMessage("Saving attendance...", "success");
-
-    google.script.run
-
-      .withSuccessHandler(function(response) {
-
-        busy = false;
-
-        showMessage(response.message, "success");
-
-        refreshData();
-
-      })
-
-      .withFailureHandler(function(error) {
-
-        busy = false;
-
-        searchCandidates();
-
-        showError(error);
-
-      })
-
-      .markAttendance(id, status);
-
-  }
-
-  /******** REFRESH ********/
-
-  function refreshData() {
-
-    busy = false;
-
-    loadCandidates();
-
-  }
-
-  /******** SUMMARY ********/
-
-  function loadSummary() {
-
-    google.script.run
-
-      .withSuccessHandler(renderSummary)
-
-      .withFailureHandler(showError)
-
-      .getSummary();
-
-  }
-
-  /******** RENDER SUMMARY ********/
-
-  function renderSummary(data) {
-
-    const t = data.totals;
-
-    document.getElementById("total").textContent =
-      t.total;
-
-    document.getElementById("present").textContent =
-      t.present;
-
-    document.getElementById("absent").textContent =
-      t.absent;
-
-    document.getElementById("pending").textContent =
-      t.pending;
-
-    const tbody = document.getElementById("summary");
-
-    if (!data.rows.length) {
-
-      tbody.innerHTML =
-        '<tr><td colspan="6" class="empty">No records found</td></tr>';
-
-      return;
-
-    }
-
-    let html = "";
-
-    let currentRegion = null;
-
-    let subtotal = null;
-
-    data.rows.forEach(function(r) {
-
-      // Region heading and subtotal
-
-      if (currentRegion !== r.region) {
-
-        if (subtotal !== null) {
-
-          html += subtotalHTML(currentRegion, subtotal);
-
-        }
-
-        currentRegion = r.region;
-
-        subtotal = {
-          present: 0,
-          absent: 0,
-          pending: 0,
-          total: 0
-        };
-
-        html += `
-          <tr class="region-heading">
-            <td colspan="6">
-              REGION: ${escapeHTML(r.region)}
-            </td>
-          </tr>
-        `;
-
-      }
-
-      subtotal.present += r.present;
-      subtotal.absent += r.absent;
-      subtotal.pending += r.pending;
-      subtotal.total += r.total;
-
-      html += `
-
-        <tr>
-
-          <td>${escapeHTML(r.region)}</td>
-
-          <td>${escapeHTML(r.post)}</td>
-
-          <td class="green">
-            <strong>${r.present}</strong>
-          </td>
-
-          <td class="red">
-            <strong>${r.absent}</strong>
-          </td>
-
-          <td class="orange">
-            <strong>${r.pending}</strong>
-          </td>
-
-          <td><strong>${r.total}</strong></td>
-
-        </tr>
-
-      `;
-
-    });
-
-    if (subtotal !== null) {
-
-      html += subtotalHTML(currentRegion, subtotal);
-
-    }
-
-    // Grand total
-
-    html += `
-
-      <tr class="grand-total">
-
-        <td colspan="2">GRAND TOTAL</td>
-
-        <td>${t.present}</td>
-
-        <td>${t.absent}</td>
-
-        <td>${t.pending}</td>
-
-        <td>${t.total}</td>
-
-      </tr>
-
-    `;
-
-    tbody.innerHTML = html;
-
-  }
-
-  /******** SUBTOTAL ********/
-
-  function subtotalHTML(region, s) {
-
-    return `
-
-      <tr class="subtotal">
-
-        <td colspan="2">
-          ${escapeHTML(region)} SUBTOTAL
-        </td>
-
-        <td>${s.present}</td>
-
-        <td>${s.absent}</td>
-
-        <td>${s.pending}</td>
-
-        <td>${s.total}</td>
-
-      </tr>
-
-    `;
-
-  }
-
-  /******** MESSAGES ********/
-
-  function showMessage(message, type) {
-
-    const el = document.getElementById("message");
-
-    el.className = "message " + type;
-
-    el.textContent = message;
-
-  }
-
-  function showError(error) {
-
-    showMessage(
-      error && error.message
-        ? error.message
-        : String(error),
-      "error"
-    );
-
-  }
-
-  /******** HTML SAFETY ********/
-
   function escapeHTML(value) {
-
-    return String(value ?? "").replace(
-      /[&<>"']/g,
-      function(c) {
-        return {
-          "&": "&amp;",
-          "<": "&lt;",
-          ">": "&gt;",
-          '"': "&quot;",
-          "'": "&#39;"
-        }[c];
-      }
-    );
-
+    return String(value == null ? "" : value).replace(/[&<>"']/g, function(c) {
+      return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];
+    });
   }
 
   function escapeJS(value) {
-
-    return String(value)
+    return String(value == null ? "" : value)
       .replace(/\\/g, "\\\\")
       .replace(/'/g, "\\'")
       .replace(/[\r\n]/g, "");
-
   }
 
-  /******** START APPLICATION ********/
+  function showMessage(message, type) {
+    const el = document.getElementById("message");
+    el.className = "message " + type;
+    el.textContent = message;
+  }
 
-  loadCandidates();
+  function showError(error) {
+    showMessage(error && error.message ? error.message : String(error), "error");
+  }
 
+  // JSONP GET: works from GitHub Pages without CORS fetch restrictions.
+  function apiGet(action) {
+    return new Promise(function(resolve, reject) {
+      const callback = "mpgbCallback_" + Date.now() + "_" +
+        Math.floor(Math.random() * 100000);
+      const script = document.createElement("script");
+      const timeout = setTimeout(function() {
+        delete window[callback];
+        script.remove();
+        reject(new Error("API loading timeout. Check Apps Script deployment."));
+      }, 25000);
+
+      window[callback] = function(result) {
+        clearTimeout(timeout);
+        delete window[callback];
+        script.remove();
+        if (result && result.success) {
+          resolve(result.data);
+        } else {
+          reject(new Error(result && result.error ? result.error : "API error"));
+        }
+      };
+
+      script.onerror = function() {
+        clearTimeout(timeout);
+        delete window[callback];
+        script.remove();
+        reject(new Error("Could not connect to Apps Script API."));
+      };
+
+      script.src = API_URL + "?action=" + encodeURIComponent(action) +
+        "&callback=" + encodeURIComponent(callback) + "&_=" + Date.now();
+      document.body.appendChild(script);
+    });
+  }
+
+  function loadCandidates() {
+    document.getElementById("results").innerHTML =
+      '<div class="loading">Loading candidate records...</div>';
+
+    apiGet("candidates")
+      .then(function(data) {
+        candidates = Array.isArray(data) ? data : [];
+        searchCandidates();
+        return apiGet("summary");
+      })
+      .then(renderSummary)
+      .catch(showError);
+  }
+
+  function searchCandidates() {
+    const q = document.getElementById("search").value.trim().toLowerCase();
+
+    const filtered = candidates.filter(function(c) {
+      return String(c.employeeId || "").toLowerCase().includes(q) ||
+        String(c.name || "").toLowerCase().includes(q) ||
+        String(c.rollNumber || "").toLowerCase().includes(q);
+    });
+
+    const results = document.getElementById("results");
+    if (!filtered.length) {
+      results.innerHTML = '<div class="empty">No matching candidate found.</div>';
+      return;
+    }
+
+    results.innerHTML = filtered.slice(0, 100).map(createCandidateCard).join("");
+  }
+
+  function createCandidateCard(c) {
+    const status = String(c.attendance || "").toUpperCase() || "NOT MARKED";
+    const statusClass = status === "PRESENT" ? "status-present" :
+      status === "ABSENT" ? "status-absent" : "status-pending";
+    const rowNumber = Number(c.rowNumber);
+
+    return `
+      <div class="candidate">
+        <div class="candidate-top">
+          <div class="candidate-name">${escapeHTML(c.name)}</div>
+          <span class="status ${statusClass}">${escapeHTML(status)}</span>
+        </div>
+
+        <div class="details">
+          <div class="detail"><span>Employee ID</span><strong>${escapeHTML(c.employeeId)}</strong></div>
+          <div class="detail"><span>Roll Number</span><strong>${escapeHTML(c.rollNumber)}</strong></div>
+          <div class="detail"><span>Post</span><strong>${escapeHTML(c.post)}</strong></div>
+          <div class="detail"><span>Branch</span><strong>${escapeHTML(c.branch)}</strong></div>
+          <div class="detail"><span>Region</span><strong>${escapeHTML(c.region)}</strong></div>
+          <div class="detail"><span>Test Centre</span><strong>${escapeHTML(c.testCenter)}</strong></div>
+          <div class="detail"><span>Category</span><strong>${escapeHTML(c.category)}</strong></div>
+        </div>
+
+        <div class="actions">
+          <button class="btn-present ${status === "PRESENT" ? "active-present" : ""}"
+            onclick="markAttendance(${rowNumber}, 'PRESENT')" ${busy ? "disabled" : ""}>
+            ✓ PRESENT
+          </button>
+          <button class="btn-absent ${status === "ABSENT" ? "active-absent" : ""}"
+            onclick="markAttendance(${rowNumber}, 'ABSENT')" ${busy ? "disabled" : ""}>
+            ✕ ABSENT
+          </button>
+        </div>
+      </div>`;
+  }
+
+  function markAttendance(rowNumber, status) {
+    if (busy) return;
+
+    const candidate = candidates.find(function(c) {
+      return Number(c.rowNumber) === Number(rowNumber);
+    });
+    if (!candidate) {
+      showError("Candidate record not found.");
+      return;
+    }
+
+    if (!confirm("Confirm attendance?\n\nName: " + candidate.name +
+      "\nEmployee ID: " + candidate.employeeId +
+      "\nRoll Number: " + candidate.rollNumber +
+      "\nStatus: " + status)) return;
+
+    busy = true;
+    document.getElementById("postRowNumber").value = rowNumber;
+    document.getElementById("postStatus").value = status;
+
+    const form = document.getElementById("attendanceForm");
+    form.action = API_URL;
+
+    showMessage("Submitting attendance...", "success");
+    form.submit();
+
+    // Verify the saved value by reading the sheet again.
+    setTimeout(function() {
+      apiGet("candidates")
+        .then(function(data) {
+          candidates = Array.isArray(data) ? data : [];
+          return apiGet("summary");
+        })
+        .then(function(summary) {
+          renderSummary(summary);
+          searchCandidates();
+
+          const updated = candidates.find(function(c) {
+            return Number(c.rowNumber) === Number(rowNumber);
+          });
+
+          if (updated && String(updated.attendance).toUpperCase() === status) {
+            showMessage("Attendance saved successfully.", "success");
+          } else {
+            showError("Attendance not verified. Refresh and check the Google Sheet.");
+          }
+        })
+        .catch(showError)
+        .then(function() {
+          busy = false;
+          searchCandidates();
+        });
+    }, 1800);
+  }
+
+  function refreshData() {
+    busy = false;
+    showMessage("Refreshing candidate records...", "success");
+    loadCandidates();
+  }
+
+  function renderSummary(data) {
+    if (!data) throw new Error("Empty summary response.");
+
+    document.getElementById("total").textContent = data.total || 0;
+    document.getElementById("present").textContent = data.present || 0;
+    document.getElementById("absent").textContent = data.absent || 0;
+    document.getElementById("pending").textContent = data.pending || 0;
+
+    const rows = data.rows || [];
+    const tbody = document.getElementById("summary");
+
+    if (!rows.length) {
+      tbody.innerHTML = '<tr><td colspan="6" class="empty">No records found</td></tr>';
+      return;
+    }
+
+    let html = "";
+    let currentRegion = null;
+    let subtotal = null;
+
+    rows.forEach(function(r) {
+      if (currentRegion !== r.region) {
+        if (subtotal !== null) html += subtotalHTML(currentRegion, subtotal);
+
+        currentRegion = r.region;
+        subtotal = {present:0, absent:0, pending:0, total:0};
+
+        html += '<tr class="region-heading"><td colspan="6">REGION: ' +
+          escapeHTML(r.region) + '</td></tr>';
+      }
+
+      subtotal.present += Number(r.present || 0);
+      subtotal.absent += Number(r.absent || 0);
+      subtotal.pending += Number(r.pending || 0);
+      subtotal.total += Number(r.total || 0);
+
+      html += `<tr>
+        <td>${escapeHTML(r.region)}</td>
+        <td>${escapeHTML(r.post)}</td>
+        <td class="green"><strong>${Number(r.present || 0)}</strong></td>
+        <td class="red"><strong>${Number(r.absent || 0)}</strong></td>
+        <td class="orange"><strong>${Number(r.pending || 0)}</strong></td>
+        <td><strong>${Number(r.total || 0)}</strong></td>
+      </tr>`;
+    });
+
+    if (subtotal !== null) html += subtotalHTML(currentRegion, subtotal);
+
+    html += `<tr class="grand-total">
+      <td colspan="2">GRAND TOTAL</td>
+      <td>${Number(data.present || 0)}</td>
+      <td>${Number(data.absent || 0)}</td>
+      <td>${Number(data.pending || 0)}</td>
+      <td>${Number(data.total || 0)}</td>
+    </tr>`;
+
+    tbody.innerHTML = html;
+  }
+
+  function subtotalHTML(region, s) {
+    return `<tr class="subtotal">
+      <td colspan="2">${escapeHTML(region)} SUBTOTAL</td>
+      <td>${s.present}</td>
+      <td>${s.absent}</td>
+      <td>${s.pending}</td>
+      <td>${s.total}</td>
+    </tr>`;
+  }
+
+  document.addEventListener("DOMContentLoaded", loadCandidates);
 </script>
 
 </body>
